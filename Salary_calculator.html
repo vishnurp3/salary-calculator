@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Take-Home Salary Calculator</title>
+    <link rel="icon" href="rupee_icon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
+    <style>
+        body {
+            background-color: #f5f7f9;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .center-box {
+            max-width: 500px;
+            /* max-height: 561px; */
+            margin: 20px;
+            padding: 30px;
+            background-color: #e9ecef;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .input-group .btn {
+            margin-left: 10px;
+        }
+
+        #table-container {
+            margin-left: 20px;
+            /* Spacing between the chart and the table */
+        }
+
+        /* ... previous styles ... */
+
+        /* Style for unchecked radio button */
+        .custom-radio .radio-label span {
+            display: inline-block;
+            padding: 5px 10px;
+            background-color: #e9e9e9;
+            /* Light grey for unchecked radio */
+            color: #333;
+            /* Dark text color */
+            border: 1px solid #ccc;
+            /* Add a border */
+            border-radius: 5px;
+            /* Curved borders */
+            transition: all 0.3s;
+            /* Smooth transition for changes */
+        }
+
+        /* Appearance when the radio is checked */
+        .custom-radio input[type="radio"]:checked+span {
+            background-color: #444;
+            /* Very dark grey for selected radio */
+            color: white;
+            /* Change text color to white for better contrast */
+            border-color: #333;
+            /* Darker border for checked state */
+        }
+
+        .custom-radio .radio-label:hover {
+            cursor: pointer;
+            border-radius: 5px;
+            /* Slightly darker grey on hover */
+        }
+
+        /* ... other styles ... */
+
+        .custom-radio input[type="radio"] {
+            display: none;
+        }
+
+        #chartContainer {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-6 card p-4 text-center">
+
+                <!-- Radio Boxes -->
+                <div class="custom-radio mb-3">
+                    <label class="radio-label mr-3">
+                        <input type="radio" name="payType" id="grossPayRadio" value="gross" checked>
+                        <span>Gross Pay</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="payType" id="fixedPayRadio" value="fixed">
+                        <span>Fixed Pay</span>
+                    </label>
+                </div>
+                <!-- Input Boxes -->
+                <div class="mb-3">
+                    <div class="input-group mb-2">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text bg-light text-muted">₹</span>
+                        </div>
+                        <input type="text" class="form-control" id="payInput" placeholder="Enter annual gross pay"
+                            oninput="formatInputAsRupees(this); checkInputs()">
+                    </div>
+
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text bg-light text-muted">%</span>
+                        </div>
+                        <input type="number" class="form-control" id="percentInput"
+                            placeholder="Enter annual projected increment" oninput="checkInputs()">
+                    </div>
+                </div>
+
+                <!-- Calculate Button -->
+                <div class="mb-3">
+                    <button id="calculateBtn" class="btn btn-primary w-100" disabled
+                        onclick="calculateTakeHome()">Calculate</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <!-- CHART AND TABLE CONTAINERS -->
+    <div id="chartContainer">
+        <div class="container mt-5">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card p-4">
+                        <canvas id="salaryBreakdownChart" width="400" height="400"></canvas>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card p-4">
+                        <div id="table-container">
+                            <table class="table table-bordered table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Year</th>
+                                        <th>Gross Pay</th>
+                                        <th>Fixed Pay</th>
+                                        <th>Take Home Salary</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="salaryProjection">
+                                    <!-- Rows will be filled by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        document.getElementById("payInput").addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                var calculateButton = document.getElementById("calculateBtn");
+                if (!calculateButton.disabled) {
+                    calculateTakeHome();
+                }
+            }
+        });
+
+        document.getElementById("percentInput").addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                var calculateButton = document.getElementById("calculateBtn");
+                if (!calculateButton.disabled) {
+                    calculateTakeHome();
+                }
+            }
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const payInput = document.getElementById("payInput");
+
+            document.querySelectorAll("[name=payType]").forEach(radio => {
+                radio.addEventListener("change", function () {
+                    payInput.placeholder = this.value === "gross" ? "Enter annual gross pay" : "Enter annual fixed pay";
+                });
+            });
+        });
+
+        function calculateTakeHome() {
+
+            document.getElementById('chartContainer').style.display = 'block';
+            const payAmount = parseFloat(payInput.value.replace(/[^0-9.]/g, ''));
+            let annualTakeHome;
+            const professionalTax = 2500;
+            const standardDeduction = 50000;
+            let incomeTax = 0;
+            let epf = 0;
+            let grossPay = 0;
+            let fixedPay = 0;
+
+            if (document.getElementById('grossPayRadio').checked) {
+                // From Gross Pay to Take-Home
+                grossPay = payAmount;
+                const professionalTax = 2500;
+                const standardDeduction = 50000;
+                const basicPay = payAmount / 2;
+                epf = basicPay * 0.12;
+                fixedPay = grossPay + epf + (basicPay * 0.0481);
+                const taxableIncome = payAmount - (professionalTax + standardDeduction);
+                incomeTax = calculateIncomeTax(taxableIncome);
+                annualTakeHome = payAmount - (professionalTax + epf + incomeTax);
+            } else {
+                // From Fixed Pay to Take-Home
+                fixedPay = payAmount;
+                grossPay = fixedPay / (1 + 0.06005 + 0.02405);
+                const basicPay = grossPay / 2;
+                epf = basicPay * 0.12;
+                const taxableIncome = grossPay - (professionalTax + standardDeduction);
+                incomeTax = calculateIncomeTax(taxableIncome);
+                annualTakeHome = grossPay - (2500 + epf + incomeTax);
+            }
+
+            const monthlyTakeHome = annualTakeHome / 12;
+            const formattedMonthlyTakeHome = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(monthlyTakeHome);
+            const deductions = standardDeduction + professionalTax + incomeTax + epf;
+            updateChart(grossPay, fixedPay, deductions, formattedMonthlyTakeHome);
+            populateSalaryProjection(parseFloat(percentInput.value), grossPay, fixedPay, formattedMonthlyTakeHome);  // Default 0% raise for the first call
+        }
+
+        function calculateIncomeTax(income) {
+            let tax = 0;
+
+            if (income <= 300000) {
+                tax = 0;
+            } else if (income <= 600000) {
+                tax = 0.05 * (income - 300000);
+            } else if (income <= 900000) {
+                tax = (0.10 * (income - 600000)) + 15000;
+            } else if (income <= 1200000) {
+                tax = (0.15 * (income - 900000)) + 45000;
+            } else if (income <= 1500000) {
+                tax = (0.20 * (income - 1200000)) + 90000;
+            } else {
+                tax = (0.30 * (income - 1500000)) + 150000;
+            }
+
+            const educationCess = 0.04 * tax;
+            tax += educationCess;
+
+            return tax;
+        }
+
+        function formatInputAsRupees(inputElement) {
+            let value = parseFloat(inputElement.value.replace(/[^0-9.]/g, ''));
+            if (isNaN(value)) {
+                inputElement.value = '';
+                return;
+            }
+
+            let formatted = new Intl.NumberFormat('en-IN', {
+                maximumFractionDigits: 0
+            }).format(value);
+
+            inputElement.value = formatted;
+        }
+
+        let salaryChart;  // Declare this at the beginning of your script
+
+        function updateChart(gross, fixed, deductions, monthlyTakeHome) {
+            if (salaryChart) {
+                salaryChart.destroy();  // If the chart already exists, destroy it before creating a new one
+            }
+
+            var ctx = document.getElementById('salaryBreakdownChart').getContext('2d');
+            salaryChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Gross Pay', 'Fixed Pay', 'Deductions'],
+                    datasets: [{
+                        data: [gross, fixed, deductions],
+                        backgroundColor: ['rgb(255, 99, 132)', 'rgb(54, 162, 235)', 'rgb(255, 205, 86)'],
+                        borderColor: ['rgb(255, 99, 132)', 'rgb(54, 162, 235)', 'rgb(255, 205, 86)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: `Monthly Take Home: ₹${monthlyTakeHome}`
+                        }
+                    }
+                }
+            });
+        }
+
+        function populateSalaryProjection(annualRaisePercentage, currentGrossPay, currentFixedPay, currentTakeHome) {
+            const tbody = document.getElementById('salaryProjection');
+            tbody.innerHTML = "";  // Clear previous rows
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+            <td>${new Date().getFullYear()}</td>
+            <td>₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(currentGrossPay)}</td>
+            <td>₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(currentFixedPay)}</td>
+            <td>₹${currentTakeHome}</td>
+        `;
+            tbody.appendChild(tr);
+
+            for (let i = 1; i <= 10; i++) {
+                // Calculate the raise
+                const raise = currentGrossPay * (annualRaisePercentage / 100);
+                currentGrossPay += raise;
+                const professionalTax = 2500;
+                const standardDeduction = 50000;
+                const basicPay = currentGrossPay / 2;
+                const epf = basicPay * 0.12;
+                currentFixedPay = currentGrossPay + epf + (basicPay * 0.0481);
+                const taxableIncome = currentGrossPay - (professionalTax + standardDeduction);
+                const incomeTax = calculateIncomeTax(taxableIncome);
+                annualTakeHome = currentGrossPay - (professionalTax + epf + incomeTax);
+                const monthlyTakeHome = annualTakeHome / 12;
+                // Create a new row
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+            <td>${new Date().getFullYear() + i}</td>
+            <td>₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(currentGrossPay)}</td>
+            <td>₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(currentFixedPay)}</td>
+            <td>₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(monthlyTakeHome)}</td>
+        `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        function updateProjection(annualRaisePercentage) {
+            populateSalaryProjection(annualRaisePercentage);
+        }
+
+        function checkInputs() {
+            var payInputValue = document.getElementById("payInput").value;
+            var percentInputValue = document.getElementById("percentInput").value;
+
+            // Enable the button only if both inputs have values
+            if (payInputValue && percentInputValue) {
+                document.getElementById("calculateBtn").disabled = false;
+            } else {
+                document.getElementById("calculateBtn").disabled = true;
+            }
+        }
+
+    </script>
+
+</body>
+
+</html>
