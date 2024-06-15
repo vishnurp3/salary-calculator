@@ -27,7 +27,7 @@ function calculateTakeHome() {
 }
 
 function calculateIncomeTax(income) {
-    let tax = 0;
+    let tax;
 
     if (income <= 300000) {
         tax = 0;
@@ -56,20 +56,14 @@ function formatInputAsRupees(inputElement) {
         return;
     }
 
-    let formatted = new Intl.NumberFormat('en-IN', {
+    inputElement.value = new Intl.NumberFormat('en-IN', {
         maximumFractionDigits: 0
     }).format(value);
-
-    inputElement.value = formatted;
 }
 
 function checkInputs() {
     var payInputValue = document.getElementById("payInput").value;
 
     // Enable the button only if the input has value
-    if (payInputValue) {
-        document.getElementById("calculateBtn").disabled = false;
-    } else {
-        document.getElementById("calculateBtn").disabled = true;
-    }
+    document.getElementById("calculateBtn").disabled = !payInputValue;
 }
